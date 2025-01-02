@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from urllib.parse import urljoin
 from datetime import datetime
 from fake_useragent import UserAgent
+from selenium.webdriver.common.action_chains import ActionChains
 
 # Dynamic folder name based on the current timestamp
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -37,6 +38,13 @@ def download_manga_images(url, output_folder=folder, driver_path=driver_path):
     options.add_argument("--disable-dev-shm-usage")  # Optimize for Docker environments
     options.add_argument("--remote-debugging-port=9222")  # Debugging purposes
     driver = webdriver.Chrome(service=service, options=options)
+
+    # Disable JavaScript-based right-click blocking
+    driver.execute_script("""
+        document.addEventListener('contextmenu', function(event) {
+            event.stopImmediatePropagation();
+        }, true);
+    """)
 
     # Load the webpage
     try:
