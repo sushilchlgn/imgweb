@@ -2,7 +2,6 @@ import os
 import time
 import requests
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from urllib.parse import urljoin
 from fake_useragent import UserAgent
@@ -11,6 +10,65 @@ from fake_useragent import UserAgent
 ua = UserAgent()
 user_agent = ua.random  # Generate a random user-agent string
 driver_path = "C:/Users/sushil/Desktop/python/imgweb/chromedriver/chromedriver.exe"
+
+def scroll_and_download_images(driver, url, chapter_folder, already_downloaded_images):
+    # Scroll until no new images are detected
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    while True:
+        # Execute JavaScript to get valid image URLs
+        img_urls = driver.execute_script("""
+            let images = [];
+            document.querySelectorAll('img').forEach(img => {
+                let imgSrc = img.src || img.getAttribute('data-src');
+                if (imgSrc && !imgSrc.startsWith('blob:')) {
+                    images.push(imgSrc);
+                }
+            });
+            return images;
+        """)
+
+        # Download new images
+        for i, img_url in enumerate(img_urls):
+            if img_url in already_downloaded_images:
+                continue
+
+            try:
+                # Resolve relative URLs to absolute URLs
+                img_url = urljoin(url, img_url)
+
+                # Download the image
+                headers = {
+                    "User-Agent": user_agent,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Accept-Language": "en-US,en;q=0.5",
+                    "Referer": url,
+                    "Connection": "keep-alive"
+                }
+                img_data = requests.get(img_url, headers=headers).content
+                img_name = os.path.join(chapter_folder, f"image_{len(already_downloaded_images) + 1}.jpg")
+
+                # Save the image
+                with open(img_name, "wb") as img_file:
+                    img_file.write(img_data)
+                print(f"Downloaded: {img_name}")
+                already_downloaded_images.add(img_url)  # Mark image as downloaded
+
+            except Exception as e:
+                print(f"Failed to download image {i+1} from {img_url}: {e}")
+
+        # Scroll down to load more images
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)  # Allow time for images to load
+
+        # Check if we've reached the bottom of the page
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            print("No more images found, exiting.")
+            break
+        last_height = new_height
+
 
 def download_images_from_scroll(url, output_folder="manga_images", driver_path=driver_path):
     # Get user input for manga name and chapter
@@ -43,69 +101,16 @@ def download_images_from_scroll(url, output_folder="manga_images", driver_path=d
         driver.quit()
         return
 
-    # Keep checking for new images as the user scrolls
     already_downloaded_images = set()  # Set to track already downloaded images
-
     try:
-        while True:
-            # Check if the browser window is still open
-            if not driver.window_handles:
-                print("Browser window closed. Exiting the program.")
-                break
-
-            # Execute JavaScript to get valid image URLs (not blob URLs)
-            img_urls = driver.execute_script("""
-                let images = [];
-                document.querySelectorAll('img').forEach(img => {
-                    let imgSrc = img.src || img.getAttribute('data-src');
-                    if (imgSrc && !imgSrc.startsWith('blob:')) {
-                        images.push(imgSrc);
-                    }
-                });
-                return images;
-            """)
-
-            print(f"Found {len(img_urls)} valid image URLs.")
-
-            # Process images and download them
-            for i, img_url in enumerate(img_urls):
-                if img_url in already_downloaded_images:
-                    continue
-                
-                try:
-                    # Resolve relative URLs to absolute URLs
-                    img_url = urljoin(url, img_url)
-
-                    # Download the image
-                    headers = {
-                        "User-Agent": user_agent,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Encoding": "gzip, deflate, br",
-                        "Accept-Language": "en-US,en;q=0.5",
-                        "Referer": url,
-                        "Connection": "keep-alive"
-                    }
-                    img_data = requests.get(img_url, headers=headers).content
-                    img_name = os.path.join(chapter_folder, f"image_{len(already_downloaded_images) + 1}.jpg")
-
-                    # Save the image
-                    with open(img_name, "wb") as img_file:
-                        img_file.write(img_data)
-                    print(f"Downloaded: {img_name}")
-                    already_downloaded_images.add(img_url)  # Mark image as downloaded
-
-                except Exception as e:
-                    print(f"Failed to download image {i+1} from {img_url}: {e}")
-
-            # Ask the user to scroll down
-            input("Press Enter after scrolling down to load more images...")
-
+        scroll_and_download_images(driver, url, chapter_folder, already_downloaded_images)
     except KeyboardInterrupt:
         print("Process interrupted by user.")
     finally:
         # Close the Selenium browser
         driver.quit()
         print("All images have been processed!")
+
 
 # Example usage
 if __name__ == "__main__":
