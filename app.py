@@ -4,9 +4,13 @@ import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
 from urllib.parse import urljoin
 
-def download_images_with_selenium(url, output_folder="downloaded_images", driver_path="chromedriver"):
+folder= "manga_images"
+driver_path = "C:/Users/sushil/Desktop/python/imgweb/chromedriver/chromedriver.exe"
+
+def download_manga_images(url, output_folder=folder, driver_path=driver_path):
     # Create the folder if it doesn't exist
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -15,6 +19,7 @@ def download_images_with_selenium(url, output_folder="downloaded_images", driver
     service = Service(driver_path)
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")  # Run in headless mode (no GUI)
+    options.add_argument("--disable-blink-features=AutomationControlled")  # Bypass some anti-bot protections
     driver = webdriver.Chrome(service=service, options=options)
 
     # Load the webpage
@@ -25,6 +30,16 @@ def download_images_with_selenium(url, output_folder="downloaded_images", driver
         print(f"Error loading the website: {e}")
         driver.quit()
         return
+
+    # Scroll to the bottom of the page to load all images
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)  # Wait for new content to load
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:  # Stop when no more content is loaded
+            break
+        last_height = new_height
 
     # Find all image elements
     img_elements = driver.find_elements(By.TAG_NAME, "img")
@@ -63,5 +78,4 @@ def download_images_with_selenium(url, output_folder="downloaded_images", driver
 # Example usage
 if __name__ == "__main__":
     website_url = input("Enter the website URL: ")
-    driver_path = input("Enter the path to your ChromeDriver (or press Enter for 'chromedriver'): ") or "chromedriver"
-    download_images_with_selenium(website_url, driver_path=driver_path)
+    download_manga_images(website_url, driver_path=driver_path)
