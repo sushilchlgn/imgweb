@@ -9,6 +9,8 @@ from urllib.parse import urljoin
 from datetime import datetime
 from fake_useragent import UserAgent
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # Dynamic folder name based on the current timestamp
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -55,7 +57,7 @@ def download_manga_images(url, output_folder=folder, driver_path=driver_path):
         driver.quit()
         return
 
-    # Scroll to the bottom of the page to load all images
+    # Scroll until all images are loaded
     last_height = driver.execute_script("return document.body.scrollHeight")
     while True:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -64,6 +66,11 @@ def download_manga_images(url, output_folder=folder, driver_path=driver_path):
         if new_height == last_height:  # Stop when no more content is loaded
             break
         last_height = new_height
+
+    # Wait for images to be loaded (specific waiting for images to appear)
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_all_elements_located((By.TAG_NAME, "img"))
+    )
 
     # Find all image elements
     img_elements = driver.find_elements(By.TAG_NAME, "img")
@@ -77,7 +84,7 @@ def download_manga_images(url, output_folder=folder, driver_path=driver_path):
     for i, img_element in enumerate(img_elements):
         try:
             # Get the image URL
-            img_url = img_element.get_attribute("src")
+            img_url = img_element.get_attribute("src") or img_element.get_attribute("data-src")
             if not img_url:
                 continue
 
