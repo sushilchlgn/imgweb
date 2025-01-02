@@ -1,57 +1,67 @@
 import os
+import time
 import requests
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 from urllib.parse import urljoin
 
-def download_images_from_website(url, output_folder="downloaded_images"):
+def download_images_with_selenium(url, output_folder="downloaded_images", driver_path="chromedriver"):
     # Create the folder if it doesn't exist
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
-    # Fetch the website content
+    # Initialize Selenium WebDriver
+    service = Service(driver_path)
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Run in headless mode (no GUI)
+    driver = webdriver.Chrome(service=service, options=options)
+
+    # Load the webpage
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching the URL: {e}")
+        driver.get(url)
+        time.sleep(5)  # Allow time for the page to fully load
+    except Exception as e:
+        print(f"Error loading the website: {e}")
+        driver.quit()
         return
 
-    # Parse the HTML content
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # Find all image tags
-    img_tags = soup.find_all("img")
-    if not img_tags:
+    # Find all image elements
+    img_elements = driver.find_elements(By.TAG_NAME, "img")
+    if not img_elements:
         print("No images found on the webpage.")
+        driver.quit()
         return
 
-    print(f"Found {len(img_tags)} images. Starting download...")
+    print(f"Found {len(img_elements)} images. Starting download...")
 
-    for i, img in enumerate(img_tags):
-        # Get the image URL
-        img_url = img.get("src")
-        if not img_url:
-            continue
-        
-        # Resolve relative URLs to absolute URLs
-        img_url = urljoin(url, img_url)
-
-        # Get the image content
+    for i, img_element in enumerate(img_elements):
         try:
-            img_data = requests.get(img_url).content
-        except requests.exceptions.RequestException as e:
-            print(f"Failed to download {img_url}: {e}")
-            continue
+            # Get the image URL
+            img_url = img_element.get_attribute("src")
+            if not img_url:
+                continue
 
-        # Save the image
-        img_name = os.path.join(output_folder, f"image_{i+1}.jpg")
-        with open(img_name, "wb") as img_file:
-            img_file.write(img_data)
-        print(f"Downloaded: {img_name}")
-    
+            # Resolve relative URLs to absolute URLs
+            img_url = urljoin(url, img_url)
+
+            # Download the image
+            img_data = requests.get(img_url).content
+            img_name = os.path.join(output_folder, f"image_{i+1}.jpg")
+
+            # Save the image
+            with open(img_name, "wb") as img_file:
+                img_file.write(img_data)
+            print(f"Downloaded: {img_name}")
+        except Exception as e:
+            print(f"Failed to download image {i+1}: {e}")
+
+    # Close the Selenium browser
+    driver.quit()
     print("All images have been downloaded!")
 
 # Example usage
 if __name__ == "__main__":
     website_url = input("Enter the website URL: ")
-    download_images_from_website(website_url)
+    driver_path = input("Enter the path to your ChromeDriver (or press Enter for 'chromedriver'): ") or "chromedriver"
+    download_images_with_selenium(website_url, driver_path=driver_path)
